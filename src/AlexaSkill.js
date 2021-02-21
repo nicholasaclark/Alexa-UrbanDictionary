@@ -9,6 +9,10 @@ const Alexa = require('ask-sdk-core');
 var goodbyes = ["bye", "later", "peace", "farewell", "see ya", "cya", "adios", "peace out"];
 // Create a variable to hold welcome message
 var welcomes = ["Howdy", "Hi", "Hello"];
+var startVoice = "<speak><voice name=\"Brian\"><lang xml:lang=\"en-GB\">";
+var endVoice = "</lang></voice></speak>";
+
+var _ = require('lodash');
 
 const LaunchRequestHandler = {
     canHandle(handlerInput) {
@@ -38,32 +42,69 @@ const GetDefinationIntentHandler = {
         // Create a blank randomDef for use later
         var randomDef = '';
         // Define const for repromptText
-        const repromptText = '<speak><voice name="Brian"><lang xml:lang="en-GB">Feel free to ask for another term</lang></voice></speak>';
+        const repromptText = startVoice + 'Feel free to ask for another term' + endVoice;
 
-        await getRemoteData('http://api.urbandictionary.com/v0/define?term=' + handlerInput.requestEnvelope.request.intent.slots.Term.value)
+        const { attributesManager } = handlerInput;
+        const sessionAttributes = attributesManager.getSessionAttributes();
+
+        var termSlot = handlerInput.requestEnvelope.request.intent.slots.Term;
+        var definitionPointer = 0;
+
+        var hasTerm = termSlot && termSlot.value;
+
+        if (!hasTerm)
+        {
+            speech = startVoice + "I'm sorry, I couldn't find the term " + termSlot.value + endVoice;
+            return handlerInput.responseBuilder
+            // Speak out the definition
+            .speak(speech)
+            // Output repromptText
+            .reprompt(repromptText)
+        }
+
+        await getRemoteData('http://api.urbandictionary.com/v0/define?term=' + termSlot.value)
             .then((response) => {
                 // Create const called data to store the JSON parsed response
                 const data = JSON.parse(response);
-                // Grab a random defination from the definitions returned
-                randomDef = randomInt(0, data.list.length)
                 // Create a var for the for the word definition store it in cleanDefnination replacing new lines with chracter returns
-                var cleanDefinition = data.list[randomDef].definition.replace(/\n/g, '').replace(/\r/g, '').replace("fuck","f'uck").replace("fucking","fuck'ing").replace("rim job","r'im job").replace("asshole","a'sshole");
+                var cleanDefinition = data.list[definitionPointer].definition.replace(/\n/g, '').replace(/\r/g, '').replace("fuck","f'uck").replace("fucking","fuck'ing").replace("rim job","r'im job").replace("asshole","a'sshole");
                 // Create a var for cleanexample replacing new lines with chracter returns
-                var cleanExample = data.list[randomDef].example.replace(/\n/g, '').replace(/\r/g, '').replace("fuck","f'uck").replace("fucking","fuck'ing").replace("rim job","r'im job").replace("asshole","a'sshole");
+                var cleanExample = data.list[definitionPointer].example.replace(/\n/g, '').replace(/\r/g, '').replace("fuck","f'uck").replace("fucking","fuck'ing").replace("rim job","r'im job").replace("asshole","a'sshole");
                 // Create a var to store the word and do some replacing of swear words
-                var word = data.list[randomDef].word
-                // store a cleaned up message to return in the StandardCard later
-                defination = "Defination: " + cleanDefinition + " \n Example: " + cleanExample;
+                var word = data.list[0].word
+
                 // Build out the speech output
                 speech = "" +
-                    "<speak> <voice name=\"Brian\"><lang xml:lang=\"en-GB\">" +
+                    startVoice +
                     "<p>" + word + ":" + "<break time='0.5s'/>" + cleanDefinition + "</p>" +
-                    "<p>" + "Here is example number "+ randomDef + ":" + "<break time='0.5s'/>" + cleanExample + "</p>" +
-                    "</lang> </voice> </speak>";
+                    "<p>" + "<break time='0.5s'/>" + cleanExample + "</p>" +
+                    "<p>" + "Would you like to define another defination for " + word + "?</p>" +
+                    endVoice;
+
+                    sessionAttributes.definitions = data.list;
+                    sessionAttributes.similarTerms = _.uniq(data.tags);
+                    sessionAttributes.definitionPointer = 0;
+                    sessionAttributes.random = false;
+
+                    console.log(sessionAttributes.definitions);
+                    console.log(sessionAttributes.similarTerms);
+                    console.log(sessionAttributes.definitionPointer);
+                    console.log(sessionAttributes.random);
+
+
+                    attributesManager.setSessionAttributes(sessionAttributes);
             })
             .catch((error) => {
                 console.log(`Error handled: ${error.message}`);
                 console.log(`Error stack: ${error.stack}`);
+
+                speech = startVoice + "I'm sorry, I couldn't find the term: " + termSlot.value + endVoice;
+
+                return handlerInput.responseBuilder
+                // Speak out the definition
+                .speak(speech)
+                // Output repromptText
+                .reprompt(repromptText)
 
                 // set an optional error message here
                 // outputSpeech = err.message;
@@ -90,32 +131,46 @@ const GetRandomDefinationIntentHandler = {
       // Create a blank speech var for use later
       var speech = '';
       // Create a blank defination variable for later
-      var defination = '';
-      // Create a blank randomDef for use later
-      var randomDef = '';
-      // Create const for repromptText
-    //  const repromptText = "Do you want to get another random term?";
+
+      const { attributesManager } = handlerInput;
+      const sessionAttributes = attributesManager.getSessionAttributes();
 
         await getRemoteData('http://api.urbandictionary.com/v0/random')
             .then((response) => {
                 // Create const called data to store the JSON parsed response
                 const data = JSON.parse(response);
-                // Grab a random defination from the definitions returned
-                randomDef = randomInt(0, data.list.length)
                 // Create a var for the word example store it in cleanExample replacing new lines with chracter returns
-                var cleanDefinition = data.list[randomDef].definition.replace(/\n/g, '').replace(/\r/g, '').replace("fuck","f'uck").replace("fucking","fuck'ing").replace("rim job","r'im job").replace("asshole","a'sshole");
+                var cleanDefinition = data.list.sort((a, b) => b.thumbs_up - a.thumbs_up)[0].definition
+                                        .replace(/\n/g, "")
+                                        .replace(/\r/g, "")
+                                        .replace("fuck","f'uck")
+                                        .replace("fucking","fuck'ing")
+                                        .replace("rim job","r'im job")
+                                        .replace("asshole","a'sshole");
                 // Create a var for cleanexample replacing new lines with chracter returns
-                var cleanExample = data.list[randomDef].example.replace(/\n/g, '').replace(/\r/g, '').replace("fuck","f'uck").replace("fucking","fuck'ing").replace("rim job","r'im job").replace("asshole","a'sshole");
+                var cleanExample = data.list.sort((a, b) => b.thumbs_up - a.thumbs_up)[0].example
+                                  .replace(/\n/g, '')
+                                  .replace(/\r/g, '')
+                                  .replace("fuck","f'uck")
+                                  .replace("fucking","fuck'ing")
+                                  .replace("rim job","r'im job")
+                                  .replace("asshole","a'sshole");
                 // Create a var to store the word and do some replacing of swear words
-                var word = data.list[randomDef].word
-                // store a cleaned up message to return in the StandardCard later
-                defination = "Defination: " + cleanDefinition + " \n Example: " + cleanExample;
+                var word = data.list[0].word
+
                 // Build out the speech output
                 speech = "" +
-                "<speak><voice name=\"Brian\"><lang xml:lang=\"en-GB\">" +
+                startVoice +
                 "<p>" + word + ":" + "<break time='0.5s'/>" + cleanDefinition + "</p>" +
-                "<p>" + "Here is example number "+ randomDef + ":" + "<break time='0.5s'/>" + cleanExample + "</p>" +
-                "</lang></voice></speak>";
+                "<p>" + cleanExample + "</p>" +
+                endVoice;
+
+                sessionAttributes.definitions = data.list;
+                sessionAttributes.similarTerms = _.uniq(data.tags);
+                sessionAttributes.definitionPointer = 0;
+                sessionAttributes.random = true;
+
+                attributesManager.setSessionAttributes(sessionAttributes);
             })
             .catch((error) => {
                 console.log(`ERROR: ${error.message}`);
@@ -126,16 +181,144 @@ const GetRandomDefinationIntentHandler = {
 
         return handlerInput.responseBuilder
             // Output speach
-            .speak(speech).shouldEndSession(false)
+            .speak(speech)
             // Output repromptText
             //.reprompt(repromptText)
             // Output the standardCard
-            .withStandardCard("Urban Dictonary", defination)
             .getResponse();
 
     } // End HandlerInput
 };
 
+const NoIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+            Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.NoIntent';
+    },
+    handle(handlerInput) {
+
+      const { attributesManager } = handlerInput;
+      const sessionAttributes = attributesManager.getSessionAttributes();
+
+      var similarTerms = sessionAttributes.similarTerms;
+
+      if (Array.isArray(similarTerms) && similarTerms.length > 0) {
+          var speechOutput = startVoice + "Before you go, here is a list of terms that you might be interested in: " + similarTerms.join(',') + endVoice;
+
+          return handlerInput.responseBuilder
+          // Speak out like terms
+          .speak(speechOutput)
+
+      } else {
+          return handlerInput.responseBuilder
+          // Speak out random goodbye
+          .speak(getGoodbye())
+      }
+    } // End HandlerInput
+};
+
+const YesIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+            Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.YesIntent';
+    },
+    async handle(handlerInput) {
+
+      const { attributesManager } = handlerInput;
+      const sessionAttributes = attributesManager.getSessionAttributes();
+
+      var speech, speechOutput, repromptOutput;
+      console.log(sessionAttributes.random);
+
+      if (sessionAttributes.random) {
+        await getRemoteData('http://api.urbandictionary.com/v0/random')
+            .then((response) => {
+                // Create const called data to store the JSON parsed response
+                const data = JSON.parse(response);
+
+                // Create a var for the word example store it in cleanExample replacing new lines with chracter returns
+                var cleanDefinition = data.list.sort((a, b) => b.thumbs_up - a.thumbs_up)[0].definition
+                                        .replace(/\n/g, "")
+                                        .replace(/\r/g, "")
+                                        .replace("fuck","f'uck")
+                                        .replace("fucking","fuck'ing")
+                                        .replace("rim job","r'im job")
+                                        .replace("asshole","a'sshole");
+                // Create a var for cleanexample replacing new lines with chracter returns
+                var cleanExample = data.list.sort((a, b) => b.thumbs_up - a.thumbs_up)[0].example
+                                  .replace(/\n/g, '')
+                                  .replace(/\r/g, '')
+                                  .replace("fuck","f'uck")
+                                  .replace("fucking","fuck'ing")
+                                  .replace("rim job","r'im job")
+                                  .replace("asshole","a'sshole");
+                // Create a var to store the word and do some replacing of swear words
+                var word = data.list[0].word
+                // store a cleaned up message to return in the StandardCard later
+
+                speech = "" +
+                startVoice +
+                "<p>" + word + ":" + "<break time='0.5s'/>" + cleanDefinition + "</p>" +
+                "<p>" + cleanExample + "</p>" + endVoice;
+            })
+            .catch((error) => {
+                console.log(`ERROR: ${error.message}`);
+                // set an optional error message here
+                // outputSpeech = error.message;
+            });
+
+        return handlerInput.responseBuilder
+            // Output speach
+            .speak(speech)
+            // Output repromptText
+            //.reprompt(repromptText)
+            .getResponse()
+
+          } else {
+
+              console.log("Get Defination Yes section");
+
+
+              var sessionDefinitions = sessionAttributes.definitions;
+              var sessionPointer = sessionAttributes.definitionPointer + 1;
+
+
+
+              console.log(sessionDefinitions.length);
+
+                if (Array.isArray(sessionDefinitions) && sessionDefinitions.length > 1)
+
+                  var cleanResponse = sessionDefinitions[sessionPointer].definition.replace(/\n/g, '').replace(/\r/g, '');
+                  var cleanExample = sessionDefinitions[sessionPointer].example.replace(/\n/g, '').replace(/\r/g, '');
+
+                  speechOutput = startVoice +
+                          "<p>" + cleanResponse + "</p>" +
+                          "<p>" + "Here is an example:" + "<break time='0.5s'/>" + cleanExample + "</p>" +
+                          "<p>" + "Would you like to hear another definition?" + "</p>" +
+                          endVoice;
+
+                  repromptOutput = startVoice + "Would you like to hear another definition?" + endVoice;
+
+                  sessionAttributes.definitionPointer = sessionPointer;
+
+                  return handlerInput.responseBuilder
+                  // Speak out the definition
+                  .speak(speechOutput)
+                  // Output repromptText
+                  .reprompt(repromptOutput)
+
+              } else {
+                  speechOutput = startVoice + "I gave you all the definitions that I have. I can't believe the term is still not clear for you!" + endVoice;
+
+                  return handlerInput.responseBuilder
+                  // Speak out the definition
+                  .speak(speechOutput)
+                  // Output repromptText
+                  .reprompt(repromptOutput)
+              }
+            }
+    }
+};
 
 const HelpIntentHandler = {
     canHandle(handlerInput) {
@@ -143,8 +326,8 @@ const HelpIntentHandler = {
             Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.HelpIntent';
     },
     handle(handlerInput) {
-        const speakOutput = '<speak><voice name="Brian"><lang xml:lang="en-GB"> You can ask for popular terms  such as, what is the meaning of cleveland steamer, or, you can say exit... Now, what can I help you with? </lang></voice></speak>';
-        const repromptText = '<speak><voice name="Brian"><lang xml:lang="en-GB">Try saying define tug boat </lang></voice></speak>';
+        const speakOutput = startVoice + 'You can ask for popular terms  such as, what is the meaning of cleveland steamer, or, you can say exit... Now, what can I help you with?' + endVoice;
+        const repromptText = startVoice + 'Try saying define tug boat' + endVoice;
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
@@ -160,7 +343,7 @@ const CancelAndStopIntentHandler = {
                 Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.StopIntent');
     },
     handle(handlerInput) {
-      const speakOutput = '<speak><voice name="Brian"><lang xml:lang="en-GB">' + getGoodbye() + ' </lang></voice></speak>';
+      const speakOutput = startVoice + getGoodbye() + endVoice;
         return handlerInput.responseBuilder
             .speak(speakOutput)
             .getResponse();
@@ -177,7 +360,7 @@ const FallbackIntentHandler = {
             Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.FallbackIntent';
     },
     handle(handlerInput) {
-        const speakOutput = '<speak><voice name="Brian"><lang xml:lang="en-GB"><amazon:emotion name="disappointed" intensity="medium">Sorry, I don\'t know about that. Please try again.</amazon:emotion></lang></voice></speak>';
+        const speakOutput = startVoice + 'Sorry, I don\'t know about that. Please try again.' + endVoice;
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
@@ -290,6 +473,8 @@ exports.handler = Alexa.SkillBuilders.custom()
         CancelAndStopIntentHandler,
         FallbackIntentHandler,
         SessionEndedRequestHandler,
+        NoIntentHandler,
+        YesIntentHandler,
         IntentReflectorHandler)
     .addErrorHandlers(
         ErrorHandler)
