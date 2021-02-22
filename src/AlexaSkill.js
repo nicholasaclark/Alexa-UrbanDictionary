@@ -282,12 +282,10 @@ const YesIntentHandler = {
               var sessionDefinitions = sessionAttributes.definitions;
               var sessionPointer = sessionAttributes.definitionPointer + 1;
 
-
-
               console.log(sessionDefinitions.length);
 
-                if (Array.isArray(sessionDefinitions) && sessionDefinitions.length > 1)
-
+                if (Array.isArray(sessionDefinitions) && sessionPointer <= sessionDefinitions.length - 1)
+                 {
                   var cleanResponse = sessionDefinitions[sessionPointer].definition.replace(/\n/g, '').replace(/\r/g, '');
                   var cleanExample = sessionDefinitions[sessionPointer].example.replace(/\n/g, '').replace(/\r/g, '');
 
@@ -306,15 +304,18 @@ const YesIntentHandler = {
                   .speak(speechOutput)
                   // Output repromptText
                   .reprompt(repromptOutput)
+                  .getResponse()
 
               } else {
-                  speechOutput = startVoice + "I gave you all the definitions that I have. I can't believe the term is still not clear for you!" + endVoice;
+                  speechOutput = startVoice + "I gave you all the definitions that I have. I can't believe the term is still not clear for you!.  Feel free to ask for another term." + endVoice;
+                  repromptOutput = startVoice + "Ask for another term or random defination.  Or simply say stop" + endVoice;
 
                   return handlerInput.responseBuilder
                   // Speak out the definition
                   .speak(speechOutput)
                   // Output repromptText
                   .reprompt(repromptOutput)
+                  .getResponse()
               }
             }
     }
