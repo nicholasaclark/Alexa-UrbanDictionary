@@ -5,6 +5,12 @@
  * */
  // Include Alexa ask-sdk-core and assign it to a const
 const Alexa = require('ask-sdk-core');
+var config = require('./config');
+var _ = require('lodash');
+var request = require('request');
+var cheerio = require('cheerio');
+var console = require('tracer').colorConsole();
+
 // Create a variable to hold goodbye message
 var goodbyes = ["bye", "later", "peace", "farewell", "see ya", "cya", "adios", "peace out"];
 // Create a variable to hold welcome message
@@ -12,7 +18,6 @@ var welcomes = ["Howdy", "Hi", "Hello"];
 var startVoice = "<speak><voice name=\"Brian\"><lang xml:lang=\"en-GB\">";
 var endVoice = "</lang></voice></speak>";
 
-var _ = require('lodash');
 
 const LaunchRequestHandler = {
     canHandle(handlerInput) {
@@ -62,7 +67,7 @@ const GetDefinationIntentHandler = {
             .reprompt(repromptText)
         }
 
-        await getRemoteData('http://api.urbandictionary.com/v0/define?term=' + termSlot.value)
+        await getRemoteData(config.defineTerm + termSlot.value)
             .then((response) => {
                 // Create const called data to store the JSON parsed response
                 const data = JSON.parse(response);
@@ -71,7 +76,8 @@ const GetDefinationIntentHandler = {
                 // Create a var for cleanexample replacing new lines with chracter returns
                 var cleanExample = data.list[definitionPointer].example.replace(/\n/g, '').replace(/\r/g, '').replace("fuck","f'uck").replace("fucking","fuck'ing").replace("rim job","r'im job").replace("asshole","a'sshole");
                 // Create a var to store the word and do some replacing of swear words
-                var word = data.list[0].word
+                var word = data.list[0].word;
+                var aLikeTerms;
 
                 // Build out the speech output
                 speech = "" +
@@ -80,6 +86,9 @@ const GetDefinationIntentHandler = {
                     "<p>" + "<break time='0.5s'/>" + cleanExample + "</p>" +
                     "<p>" + "Would you like to define another defination for " + word + "?</p>" +
                     endVoice;
+
+                    aLikeTerms = cleanDefinition.replace(/\\/g, "(?<=[)[^][\r\n]*(?=])");
+                    console.log(aLikeTerms);
 
                     sessionAttributes.definitions = data.list;
                     sessionAttributes.similarTerms = _.uniq(data.tags);
@@ -135,7 +144,7 @@ const GetRandomDefinationIntentHandler = {
       const { attributesManager } = handlerInput;
       const sessionAttributes = attributesManager.getSessionAttributes();
 
-        await getRemoteData('http://api.urbandictionary.com/v0/random')
+        await getRemoteData(config.randomTerm)
             .then((response) => {
                 // Create const called data to store the JSON parsed response
                 const data = JSON.parse(response);
@@ -231,7 +240,7 @@ const YesIntentHandler = {
       console.log(sessionAttributes.random);
 
       if (sessionAttributes.random) {
-        await getRemoteData('http://api.urbandictionary.com/v0/random')
+        await getRemoteData(config.randomTerm)
             .then((response) => {
                 // Create const called data to store the JSON parsed response
                 const data = JSON.parse(response);
