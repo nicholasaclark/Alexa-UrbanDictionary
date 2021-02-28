@@ -88,20 +88,18 @@ const GetDefinationIntentHandler = {
                     endVoice;
 
                     aLikeTerms = cleanDefinition.replace(/\\/g, "(?<=[)[^][\r\n]*(?=])");
-                    console.log(aLikeTerms);
 
                     sessionAttributes.definitions = data.list;
                     sessionAttributes.similarTerms = aLikeTerms;
                     sessionAttributes.definitionPointer = 0;
                     sessionAttributes.random = false;
 
-                    console.log(sessionAttributes.definitions);
-                    console.log(sessionAttributes.similarTerms);
-                    console.log(sessionAttributes.definitionPointer);
-                    console.log(sessionAttributes.random);
-
-
                     attributesManager.setSessionAttributes(sessionAttributes);
+
+                    console.log("Current Definitions: " + sessionAttributes.definitions);
+                    console.log("Current similarTerms: " +sessionAttributes.similarTerms);
+                    console.log("Current definitionPointer Location: " +sessionAttributes.definitionPointer);
+                    console.log("random value: " +sessionAttributes.random);
             })
             .catch((error) => {
                 console.log(`Error handled: ${error.message}`);
@@ -176,7 +174,6 @@ const GetRandomDefinationIntentHandler = {
                 endVoice;
 
                 aLikeTerms = cleanDefinition.replace(/\\/g, "(?<=[)[^][\r\n]*(?=])");
-                console.log(aLikeDefineRandomTerms);
 
                 sessionAttributes.definitions = data.list;
                 sessionAttributes.similarTerms = aLikeTerms
@@ -184,6 +181,11 @@ const GetRandomDefinationIntentHandler = {
                 sessionAttributes.random = true;
 
                 attributesManager.setSessionAttributes(sessionAttributes);
+
+                console.log("Current Definitions: " + sessionAttributes.definitions);
+                console.log("Current similarTerms: " +sessionAttributes.similarTerms);
+                console.log("Current definitionPointer Location: " +sessionAttributes.definitionPointer);
+                console.log("random value: " +sessionAttributes.random);
             })
             .catch((error) => {
                 console.log(`ERROR: ${error.message}`);
