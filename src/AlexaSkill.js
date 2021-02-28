@@ -77,7 +77,7 @@ const GetDefinationIntentHandler = {
                 var cleanExample = data.list[definitionPointer].example.replace(/\n/g, '').replace(/\r/g, '').replace("fuck","f'uck").replace("fucking","fuck'ing").replace("rim job","r'im job").replace("asshole","a'sshole");
                 // Create a var to store the word and do some replacing of swear words
                 var word = data.list[0].word;
-                var aLikeTerms;
+                var aLikeDefineTerms;
 
                 // Build out the speech output
                 speech = "" +
@@ -91,7 +91,7 @@ const GetDefinationIntentHandler = {
                     console.log(aLikeTerms);
 
                     sessionAttributes.definitions = data.list;
-                    sessionAttributes.similarTerms = _.uniq(data.tags);
+                    sessionAttributes.similarTerms = aLikeTerms;
                     sessionAttributes.definitionPointer = 0;
                     sessionAttributes.random = false;
 
@@ -139,7 +139,8 @@ const GetRandomDefinationIntentHandler = {
     async handle(handlerInput) {
       // Create a blank speech var for use later
       var speech = '';
-      // Create a blank defination variable for later
+
+      var aLikeDefineRandomTerms;
 
       const { attributesManager } = handlerInput;
       const sessionAttributes = attributesManager.getSessionAttributes();
@@ -174,8 +175,11 @@ const GetRandomDefinationIntentHandler = {
                 "<p>" + cleanExample + "</p>" +
                 endVoice;
 
+                aLikeTerms = cleanDefinition.replace(/\\/g, "(?<=[)[^][\r\n]*(?=])");
+                console.log(aLikeDefineRandomTerms);
+
                 sessionAttributes.definitions = data.list;
-                sessionAttributes.similarTerms = _.uniq(data.tags);
+                sessionAttributes.similarTerms = aLikeTerms
                 sessionAttributes.definitionPointer = 0;
                 sessionAttributes.random = true;
 
@@ -198,6 +202,61 @@ const GetRandomDefinationIntentHandler = {
 
     } // End HandlerInput
 };
+
+const WordOfTheDayHandler = {
+  canHandle(handlerInput) {
+      return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+          Alexa.getIntentName(handlerInput.requestEnvelope) === 'WordOfTheDay';
+  },
+  async handle(handlerInput) {
+    var termSlot = handlerInput.requestEnvelope.request.intent.slots.Term;
+
+  request({
+             url: config.wordOfTheDay,
+             timeout: 3000,
+             headers: {
+                 "Referer": config.wordOfTheDay
+             }
+         }, function (error, response, body) {
+             if (error) {
+                 console.log(error);
+                 var speechOutput = startVoice + "I'm sorry, I couldn't find the term: " + termSlot.value + endVoice;
+                 var repromptOutput = startVoice + "Ask for another term  " + endVoice;
+                 return handlerInput.responseBuilder
+                     // Output speach
+                     .speak(speechOutput)
+                     // Output repromptText
+                     .reprompt(repromptOutput)
+                     .getResponse()
+
+             } else {
+                 var $, word, def, exam;
+                 $ = cheerio.load(body);
+
+                 $('#content div.def-panel').children().each(function(i, elm) {
+                     if (i === 0) return true;
+                     // console.log(i, $(this).text()) // for testing do text()
+
+                     if (i < 4) {
+                         if ($(this).attr('class') === 'def-header')      { word = cleanString($(this).text()); }
+                         else if ($(this).attr('class') === 'meaning')    { def =  cleanString($(this).text()); }
+                         else if ($(this).attr('class') === 'example')    { exam = cleanString($(this).text()); }
+                     }
+                     else { return false; }
+                 });
+                 speechOutput = startVoice + "<p>" + word + ":<break time='0.5s'/>" + def + "</p><p>Here is an example:<break time='0.5s'/>" + exam + "</p>" + endVoice;
+                 repromptOutput = startVoice + "Ask for another term  " + endVoice;
+
+                         return handlerInput.responseBuilder
+                             // Output speach
+                             .speak(speechOutput)
+                             // Output repromptText
+                             .reprompt(repromptOutput)
+                             .getResponse()
+             }
+         });
+      } // End HandlerInput
+  };
 
 const NoIntentHandler = {
     canHandle(handlerInput) {
@@ -479,6 +538,7 @@ exports.handler = Alexa.SkillBuilders.custom()
         LaunchRequestHandler,
         GetDefinationIntentHandler,
         GetRandomDefinationIntentHandler,
+        WordOfTheDayHandler,
         HelpIntentHandler,
         CancelAndStopIntentHandler,
         FallbackIntentHandler,
