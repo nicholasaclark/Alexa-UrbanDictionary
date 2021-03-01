@@ -87,10 +87,10 @@ const GetDefinationIntentHandler = {
                     "<p>" + "Would you like to define another defination for " + word + "?</p>" +
                     endVoice;
 
-                    aLikeTerms = cleanDefinition.replace(/\\/g, "(?<=[)[^][\r\n]*(?=])");
+                    aLikeDefineTerms = cleanDefinition.replace(/\\/g, "(?<=[)[^][\r\n]*(?=])");
 
                     sessionAttributes.definitions = data.list;
-                    sessionAttributes.similarTerms = aLikeTerms;
+                    sessionAttributes.similarTerms = aLikeDefineTerms;
                     sessionAttributes.definitionPointer = 0;
                     sessionAttributes.random = false;
 
@@ -173,10 +173,10 @@ const GetRandomDefinationIntentHandler = {
                 "<p>" + cleanExample + "</p>" +
                 endVoice;
 
-                aLikeTerms = cleanDefinition.replace(/\\/g, "(?<=[)[^][\r\n]*(?=])");
+                aLikeDefineRandomTerms = cleanDefinition.replace(/\\/g, "(?<=[)[^][\r\n]*(?=])");
 
                 sessionAttributes.definitions = data.list;
-                sessionAttributes.similarTerms = aLikeTerms
+                sessionAttributes.similarTerms = aLikeDefineRandomTerms
                 sessionAttributes.definitionPointer = 0;
                 sessionAttributes.random = true;
 
@@ -211,52 +211,59 @@ const WordOfTheDayHandler = {
           Alexa.getIntentName(handlerInput.requestEnvelope) === 'WordOfTheDay';
   },
   async handle(handlerInput) {
-    var termSlot = handlerInput.requestEnvelope.request.intent.slots.Term;
 
-  request({
-             url: config.wordOfTheDay,
-             timeout: 3000,
-             headers: {
-                 "Referer": config.wordOfTheDay
-             }
-         }, function (error, response, body) {
-             if (error) {
-                 console.log(error);
-                 var speechOutput = startVoice + "I'm sorry, I couldn't find the term: " + termSlot.value + endVoice;
-                 var repromptOutput = startVoice + "Ask for another term  " + endVoice;
-                 return handlerInput.responseBuilder
-                     // Output speach
-                     .speak(speechOutput)
-                     // Output repromptText
-                     .reprompt(repromptOutput)
-                     .getResponse()
+    const { attributesManager } = handlerInput;
+    const sessionAttributes = attributesManager.getSessionAttributes();
 
-             } else {
-                 var $, word, def, exam;
-                 $ = cheerio.load(body);
+    var aLikeWordOfTheDayTerms, cleanDefinition, speechOutput;
 
-                 $('#content div.def-panel').children().each(function(i, elm) {
-                     if (i === 0) return true;
-                     // console.log(i, $(this).text()) // for testing do text()
+    await getRemoteData(config.wordOfTheDay)
+        .then((response) => {
+            // Create const called data to store the JSON parsed response
+            const data = JSON.parse(response);
+            // Create a var for the word example store it in cleanExample replacing new lines with chracter returns
+            var cleanDefinition = data.list[0].definition
+                                    .replace(/\n/g, "")
+                                    .replace(/\r/g, "")
+                                    .replace("fuck","f'uck")
+                                    .replace("fucking","fuck'ing")
+                                    .replace("rim job","r'im job")
+                                    .replace("asshole","a'sshole");
+            // Create a var for cleanexample replacing new lines with chracter returns
 
-                     if (i < 4) {
-                         if ($(this).attr('class') === 'def-header')      { word = cleanString($(this).text()); }
-                         else if ($(this).attr('class') === 'meaning')    { def =  cleanString($(this).text()); }
-                         else if ($(this).attr('class') === 'example')    { exam = cleanString($(this).text()); }
-                     }
-                     else { return false; }
-                 });
-                 speechOutput = startVoice + "<p>" + word + ":<break time='0.5s'/>" + def + "</p><p>Here is an example:<break time='0.5s'/>" + exam + "</p>" + endVoice;
-                 repromptOutput = startVoice + "Ask for another term  " + endVoice;
+            var word = data.list[0].word
 
-                         return handlerInput.responseBuilder
-                             // Output speach
-                             .speak(speechOutput)
-                             // Output repromptText
-                             .reprompt(repromptOutput)
-                             .getResponse()
-             }
-         });
+            // Build out the speech output
+            speechOutput = "" +
+            startVoice +
+            "<p>" + word + ": " + "<break time='0.5s'/>" + cleanDefinition + "</p>" + endVoice;
+
+            aLikeWordOfTheDayTerms = cleanDefinition.replace(/\\/g, "(?<=[)[^][\r\n]*(?=])");
+
+            sessionAttributes.definitions = data.list;
+            sessionAttributes.similarTerms = aLikeWordOfTheDayTerms
+            sessionAttributes.definitionPointer = 0;
+            sessionAttributes.random = true;
+
+            attributesManager.setSessionAttributes(sessionAttributes);
+
+            console.log("Current Definitions: " + sessionAttributes.definitions);
+            console.log("Current similarTerms: " +sessionAttributes.similarTerms);
+            console.log("Current definitionPointer Location: " +sessionAttributes.definitionPointer);
+            console.log("random value: " +sessionAttributes.random);
+        })
+        .catch((error) => {
+            console.log(`ERROR: ${error.message}`);
+            // set an optional error message here
+            // outputSpeech = error.message;
+        });
+
+      return handlerInput.responseBuilder
+        // Output speach
+        .speak(speechOutput)
+        .getResponse()
+
+
       } // End HandlerInput
   };
 
@@ -487,7 +494,7 @@ const ErrorHandler = {
         // Create const for speakOutput
         const speakOutput = '<speak><voice name="Brian"><lang xml:lang="en-GB"><amazon:emotion name="disappointed" intensity="medium">Sorry, I had trouble doing what you asked. Please try again.</amazon:emotion></lang></voice></speak>';
         // Output error to console
-        console.log(`~~~~ Error handled: ${JSON.stringify(error)}`);
+        console.log(`~~~~ Error handled: ` +error );
 
         // Return handlerInput.responseBuilder
         return handlerInput.responseBuilder
@@ -529,6 +536,10 @@ function getGoodbye() {
 function randomInt(low, high) {
     return Math.floor(Math.random() * high);
 } // End randomInt function
+
+function cleanString(s) {
+    return s.replace(/(\r\n|\n|\r)/gm,"");
+}
 
 /**
  * This handler acts as the entry point for your skill, routing all request and response
